@@ -1,24 +1,27 @@
 import Data.Maybe
+import Data.Char
+import GHC.Base
 
-data Command =  MoveLeft      -- <
-              | MoveRight     -- >
-              | Increment     -- +
-              | Decrement     -- -
-              | Print         -- .
-              | TakeInput     -- ,
-              | LoopL         -- [
-              | LoopR         -- ]
+data Command =  MoveLeft          --  <
+              | MoveRight         --  >
+              | Increment         --  +
+              | Decrement         --  -
+              | Print             --  .
+              | Input             --  ,
+              | LoopL             --  [
+              | LoopR             --  ]
+              | Loop [Command]    -- commands inside a loop
               deriving Show
 
 
 charToCommand :: Char -> Maybe Command
 charToCommand s = case s of
-            '<' -> Just MoveLeft
+            '<' -> Just MoveRight
             '>' -> Just MoveLeft
             '+' -> Just Increment
             '-' -> Just Decrement
             '.' -> Just Print
-            ',' -> Just TakeInput
+            ',' -> Just Input
             '[' -> Just LoopL
             ']' -> Just LoopR
             _   -> Nothing
@@ -26,35 +29,45 @@ charToCommand s = case s of
 parseCommand :: String -> [Command]
 parseCommand = mapMaybe charToCommand
 
-data Tape a = Tape [a] Int [a]
+data Memory = Memory [Int] [Int]
     deriving Show
 
-emptyTape :: Tape Int
-emptyTape = Tape zeros 0 zeros
-  where zeros = repeat 0
+emptyMemory :: Memory
+emptyMemory = Memory [] []
 
-moveRight :: Tape Int -> Tape Int
-moveRight (Tape ls x (r:rs)) = Tape (x:ls) r rs
-
-
-moveLeft :: Tape Int -> Tape Int
-moveLeft (Tape (l:ls) x rs) = Tape ls l (x:rs)
-
-printCell :: Tape Int -> String
-printCell (Tape _ a _) = show a
-
-perform :: Command -> Tape Int -> Tape Int
-perform command tape
-  | command == MoveLeft  = moveLeft tape
-  | command == MoveRight = moveRight tape
-  | command == Increment = increment cell
-  | command == Decrement = decrement cell
-  | command == Print     = printCell cell
-  | command == TakeInput = takeInput tape
-  | command == LoopL     = _
-  | command == LoopR     = _
-  | otherwise            = _
+moveRight :: Memory -> Memory
+moveRight (Memory ls (r:rs)) = Memory (r:ls) rs
+moveRight (Memory ls []) = Memory (0:ls) []
 
 
-run :: [Command] -> IO()
-run = undefined 
+moveLeft :: Memory -> Memory
+moveLeft (Memory (l:ls) rs) = Memory ls (l:rs)
+moveLeft (Memory [] rs) = Memory [] (0:rs)
+
+modifyMemory :: (Int -> Int) -> Memory -> Memory
+modifyMemory f (Memory left (x:rs)) = Memory left (f x:rs)
+modifyMemory f (Memory left []) = Memory left [f 0]
+
+readCell :: Memory -> Int
+readCell (Memory _ (x:rs)) = x
+readCell (Memory _ [])     = 0
+
+
+exec :: Memory -> [Command] -> IO Memory
+exec memory []     = returnIO memory
+exec memory (x:xs) = case x of
+  MoveLeft  -> exec (moveLeft memory) xs
+  MoveRight -> exec (moveRight memory) xs
+  Increment -> exec (modifyMemory (+1) memory) xs
+  Decrement -> exec (modifyMemory (\x -> x - 1) memory) xs
+  Print -> do 
+    putChar (chr $ readCell memory)
+    exec memory xs
+  Input -> do
+    c <- getChar 
+    exec (modifyMemory ( const $ ord c) memory) xs 
+  _ -> undefined 
+
+bfSource :: [Char]
+bfSource = "+>++>+++>[++++]<-"
+
