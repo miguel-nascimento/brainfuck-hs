@@ -14,20 +14,7 @@ data Command =  MoveLeft          --  <
               deriving Show
 
 
-charToCommand :: Char -> Maybe Command
-charToCommand s = case s of
-            '<' -> Just MoveRight
-            '>' -> Just MoveLeft
-            '+' -> Just Increment
-            '-' -> Just Decrement
-            '.' -> Just Print
-            ',' -> Just Input
-            '[' -> Just LoopL
-            ']' -> Just LoopR
-            _   -> Nothing
-
-parseCommand :: String -> [Command]
-parseCommand = mapMaybe charToCommand
+newtype Parser a = Parser { parse :: String -> Maybe (a, String) }
 
 data Memory = Memory [Int] [Int]
     deriving Show
@@ -52,22 +39,6 @@ readCell :: Memory -> Int
 readCell (Memory _ (x:rs)) = x
 readCell (Memory _ [])     = 0
 
-
-exec :: Memory -> [Command] -> IO Memory
-exec memory []     = returnIO memory
-exec memory (x:xs) = case x of
-  MoveLeft  -> exec (moveLeft memory) xs
-  MoveRight -> exec (moveRight memory) xs
-  Increment -> exec (modifyMemory (+1) memory) xs
-  Decrement -> exec (modifyMemory (\x -> x - 1) memory) xs
-  Print -> do 
-    putChar (chr $ readCell memory)
-    exec memory xs
-  Input -> do
-    c <- getChar 
-    exec (modifyMemory ( const $ ord c) memory) xs 
-  _ -> undefined 
-
-bfSource :: [Char]
+bfSource :: String
 bfSource = "+>++>+++>[++++]<-"
 
