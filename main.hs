@@ -1,5 +1,5 @@
-import Data.Maybe
-import Data.Char
+import Data.Maybe ()
+import Control.Applicative ( Alternative((<|>), empty) )
 import GHC.Base
 
 data Command =  MoveLeft          --  <
@@ -8,13 +8,38 @@ data Command =  MoveLeft          --  <
               | Decrement         --  -
               | Print             --  .
               | Input             --  ,
-              | LoopL             --  [
-              | LoopR             --  ]
               | Loop [Command]    -- commands inside a loop
-              deriving Show
+              deriving (Show, Eq)
 
+newtype Parser a = Parser { runParser :: String -> Maybe (a, String) }
+instance Functor Parser where
+  fmap f (Parser p) = Parser $ \input -> do
+    (x, input') <- p input
+    Just (f x, input')
 
-newtype Parser a = Parser { parse :: String -> Maybe (a, String) }
+instance Applicative Parser where
+  pure x = Parser $ \input -> Just (x, input)
+  (Parser p1) <*> (Parser p2) = Parser $ \input -> do
+                                (f, input')  <- p1 input
+                                (a, input'') <- p2 input'
+                                Just (f a, input'')
+instance Alternative Parser where
+  empty = Parser $ const Nothing
+  (Parser p1) <|> (Parser p2) =
+    Parser $ \input -> p1 input <|> p2 input
+
+charP :: Char -> Parser Char
+charP x = Parser go where
+  go (y:ys)
+     | x == y    = Just (x, ys)
+     | otherwise = Nothing
+  go [] = Nothing
+
+stringP :: String -> Parser String
+stringP = traverse charP
+
+bfLeft :: Parser Command
+bfLeft = MoveLeft <$ charP '<'
 
 data Memory = Memory [Int] [Int]
     deriving Show
