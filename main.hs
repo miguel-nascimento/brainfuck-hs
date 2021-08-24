@@ -1,7 +1,10 @@
-import Data.Maybe ()
-import Control.Applicative ( Alternative((<|>), empty) )
+import Data.Maybe 
+import Control.Applicative
 import GHC.Base
 
+-- Data Structure
+data Memory = Memory [Int] [Int]
+    deriving Show
 data Brainfuck =  MoveLeft        --  <
               | MoveRight         --  >
               | Increment         --  +
@@ -11,7 +14,10 @@ data Brainfuck =  MoveLeft        --  <
               | Loop [Brainfuck]  --  Commands inside a loop
               deriving (Show, Eq)
 
+-- Parser
+
 newtype Parser a = Parser { runParser :: String -> Maybe (a, String) }
+
 instance Functor Parser where
   fmap f (Parser p) = Parser $ \input -> do
     (x, input') <- p input
@@ -23,6 +29,7 @@ instance Applicative Parser where
                                 (f, input')  <- p1 input
                                 (a, input'') <- p2 input'
                                 Just (f a, input'')
+
 instance Alternative Parser where
   empty = Parser $ const Nothing
   (Parser p1) <|> (Parser p2) =
@@ -34,9 +41,6 @@ charP x = Parser go where
      | x == y    = Just (x, ys)
      | otherwise = Nothing
   go [] = Nothing
-
-stringP :: String -> Parser String
-stringP = traverse charP
 
 bfLeft :: Parser Brainfuck
 bfLeft = MoveLeft <$ charP '<'
@@ -54,11 +58,26 @@ bfLoop :: Parser Brainfuck
 bfLoop =  Loop <$> (charP '[' *> instructions <* charP ']')
   where instructions = many bfCommand
 
-bfCommand :: Parser Brainfuck
-bfCommand = bfLoop <|> bfDecrement<|> bfIncrement<|> bfLeft <|> bfRight 
+bfPrint :: Parser Brainfuck
+bfPrint = Print <$ charP '.'
 
-data Memory = Memory [Int] [Int]
-    deriving Show
+bfInput :: Parser Brainfuck
+bfInput = Input <$ charP ','
+
+bfCommand :: Parser Brainfuck
+bfCommand = bfPrint <|> bfInput <|> bfLoop <|> bfDecrement
+                <|> bfIncrement <|> bfLeft <|> bfRight 
+
+-- NOTE: this is good? i'm asking how can i remove all the "Brainfuck" from the list
+-- SOLUTION: combinate the parser with a until EOF parser and with a whitespace parser
+bfParser :: Parser [Brainfuck]
+bfParser = many bfCommand
+
+parseFile :: FilePath -> Parser a -> IO (Maybe a)
+parseFile filename parser = do 
+  input <- readFile filename
+  return $ fst <$> runParser parser input
+
 
 emptyMemory :: Memory
 emptyMemory = Memory [] []
@@ -79,7 +98,3 @@ modifyMemory f (Memory left []) = Memory left [f 0]
 readCell :: Memory -> Int
 readCell (Memory _ (x:rs)) = x
 readCell (Memory _ [])     = 0
-
-bfSource :: String
-bfSource = "+>++>+++>[++++]<-"
-
