@@ -2,13 +2,13 @@ import Data.Maybe ()
 import Control.Applicative ( Alternative((<|>), empty) )
 import GHC.Base
 
-data Command =  MoveLeft          --  <
+data Brainfuck =  MoveLeft        --  <
               | MoveRight         --  >
               | Increment         --  +
               | Decrement         --  -
               | Print             --  .
               | Input             --  ,
-              | Loop [Command]    -- commands inside a loop
+              | Loop [Brainfuck]  --  Commands inside a loop
               deriving (Show, Eq)
 
 newtype Parser a = Parser { runParser :: String -> Maybe (a, String) }
@@ -38,8 +38,24 @@ charP x = Parser go where
 stringP :: String -> Parser String
 stringP = traverse charP
 
-bfLeft :: Parser Command
+bfLeft :: Parser Brainfuck
 bfLeft = MoveLeft <$ charP '<'
+
+bfRight :: Parser Brainfuck
+bfRight = MoveRight <$ charP '>'
+
+bfIncrement :: Parser Brainfuck 
+bfIncrement = Increment <$ charP '+'
+
+bfDecrement :: Parser Brainfuck
+bfDecrement = Decrement <$ charP '-'
+
+bfLoop :: Parser Brainfuck
+bfLoop =  Loop <$> (charP '[' *> instructions <* charP ']')
+  where instructions = many bfCommand
+
+bfCommand :: Parser Brainfuck
+bfCommand = bfLoop <|> bfDecrement<|> bfIncrement<|> bfLeft <|> bfRight 
 
 data Memory = Memory [Int] [Int]
     deriving Show
